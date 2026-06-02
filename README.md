@@ -1,6 +1,6 @@
 # Enterprise DevSecOps Pipeline: Secure Infrastructure as Code with Terraform & CI/CD Automation
 
-[Secure IaC pipeline architecture diagram](./images/IaC-Pipeline.png)
+![Secure IaC pipeline architecture diagram](./images/IaC-Pipeline.png)
 
 
 
@@ -42,10 +42,11 @@ In this first phase, to  ensure that security is part of the development process
 installed and congiured for local development environments using the pre-commit framewor.
 Goal: prevent insecure or broken code from ever reaching the remote repo and evntually the CI/CD pipeline
 
-- Pre-commit framework setup for automated local checks
-- Gitleaks integration for hardcoded secrets detection
-- Terraform formatting (`terraform fmt`) and linting (`tflint`)
-- Goal: prevent insecure or broken code from ever reaching the remote repo
+To enable wide coverage of security issues, the hooks were categorized into 
+
+- Quality & IaC Security :terraform_fmt, terraform_validate,terraform_tflint,terraform_trivy,terraform_checkov,terrascan 
+- Secret-Detection : gitleaks, detect-secrets 
+- File Hygiene layers: trailing-whitespace, check-yaml,check-json, check-added-large-files
 
 ### Phase 2 — Authentication & Zero-Trust Access
 - Configured OpenID Connect (OIDC) between GitHub Actions and AWS
