@@ -10,7 +10,7 @@ This project demonstrates the design and implementation of a production-grade, s
 
 ---
 
-## 3. Project Architecture Overview
+## Project folder structure
 
 
 ```

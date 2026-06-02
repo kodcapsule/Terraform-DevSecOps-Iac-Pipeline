@@ -1,0 +1,239 @@
+name: Terraform CI/CD Pipeline to deploy EC2 infrastructure 
+
+on:
+  
+  push:    
+    branches:
+      - main
+    # paths-ignore:
+    # - 'README.md'
+    # - '.md'
+    paths:
+    - '*'
+  pull_request:
+    branches:
+      - main  
+    paths-ignore:
+    - 'README.md'
+    - '.md'   
+  workflow_run: # Triggered when manually triggered from the Actions tab
+    workflows: ["gitleaks"] # Name of the workflow that
+    types:
+      - completed  
+
+env:
+  TF_LOG: INFO
+  TF_LOG_PATH: terraform.log
+  TF_VERSION: 1.13.3 
+  AWS_REGION: us-east-1
+  WORKING_DIR: .
+
+ 
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+  security-events: write
+
+jobs:
+
+#####################################
+  #  Format , Validation & Linting 
+#####################################
+  formatting-validate-linting:
+    runs-on: ubuntu-latest
+    name: 'Formatting, Linting, and Validation' 
+    outputs:
+      plan_content: ${{ steps.format_plan.outputs.plan_result }}
+    steps:
+      - name: Checkout code
+        id: checkout
+        uses: actions/checkout@v2      
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+    
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v5.1.0
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          role-session-name: GitHubActions
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terraform Init
+        id: init
+        run: terraform init 
+
+      - name: Terraform fmt
+        id: fmt
+        run: terraform fmt -check
+        continue-on-error: true
+     
+      - name: Terraform Validate
+        id: validate
+        run: terraform validate -no-color        
+     
+      - name: Set up TFLint
+        uses: terraform-linters/setup-tflint@v6
+        with:
+         tflint_version: v0.52.0
+         cache: true
+      - name: Show version
+        run: tflint --version
+
+      - name: Init TFLint
+        run: tflint --init
+        env:        
+         GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Run TFLint
+        run: tflint -f compact
+        continue-on-error: true
+
+      
+      - name: Generate Terraform Plan
+        id: plan        
+        run: |
+            terraform plan -no-color -out=tfplan 2>&1 | tee plan_output.txt
+        working-directory: .
+        continue-on-error: false
+
+      - name: Format Plan Output
+        id: format_plan
+        run: |
+           # Truncate if too long (GitHub issue body limit is 65536 chars)
+           PLAN=$(cat plan_output.txt | head -c 50000)
+           # Save as multiline env var
+            echo "plan_result<<EOF" >> $GITHUB_OUTPUT
+            echo "$PLAN" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+    
+
+
+
+
+#####################################################
+  #  Security checks and scanning for vulnerabilities
+#####################################################
+  security-scan:
+    runs-on: ubuntu-latest
+    name: 'Security Scanning' 
+    steps:
+      - name: Checkout code
+        id: checkout
+        uses: actions/checkout@v2      
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v5.1.0
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          role-session-name: GitHubActions
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Run tfsec security scan
+        uses: triat/terraform-security-scan@v3
+        id: tfsec
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+        
+      
+
+      - name: Run Checkov action
+        uses: bridgecrewio/checkov-action@master
+        id: checkov
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          directory: .            # Folder containing .tf files
+          framework: terraform             # Specific IaC framework
+          soft_fail: false                  # Set to true to allow pipeline to continue on failure
+          output_format: cli 
+        continue-on-error: true
+
+      - name: Run Trivy Terraform Scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        id: trivy
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          scan-type: terraform
+          severity: HIGH,CRITICAL
+          format: table
+          output: trivy_report.txt
+        continue-on-error: true
+
+        
+    
+  
+#####################################
+  #  Plan Review and manual approval
+#####################################
+  plan-manual-approval:
+    runs-on: ubuntu-latest
+    needs: [formatting-validate-linting, security-scan]
+    name: 'Manual Approval'    
+    if: success()
+
+    permissions:
+      issues: write
+    steps:
+    
+    - name: Await Manual Approval
+      uses: trstringer/manual-approval@v1
+      with:
+        secret: ${{ github.TOKEN }}
+        approvers: kodcapsule
+        minimum-approvals: 1
+        issue-title: "Deploying v1.1 to prod from staging"
+        issue-body: |
+            Please approve or deny the deployment of version v1.1.
+
+            ## Terraform Plan Output
+            <details>
+            <summary>Click here to expand</summary>
+            \${{ needs.formatting-validate-linting.outputs.plan_content }}
+            **To approve:** comment `approved`
+            **To deny:** comment `denied`
+            </details>
+
+
+#######################################################
+  #  Apply Terraform Plan to deploy infrastructure
+######################################################  
+
+  deploy-infrastructure:
+    runs-on: ubuntu-latest
+    name: 'Terraform Apply'
+    needs: plan-manual-approval       
+    steps:      
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v5.1.0
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          role-session-name: GitHubActions
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}   
+    
+      - name: Terraform Init
+        id: init
+        run: terraform init   
+
+      - name: Terraform Apply
+        id: apply
+        run: terraform apply -auto-approve 
+      
+      
