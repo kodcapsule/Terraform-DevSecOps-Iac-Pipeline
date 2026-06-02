@@ -1,32 +1,19 @@
 # Enterprise DevSecOps Pipeline: Secure Infrastructure as Code with Terraform & CI/CD Automation
 
-> **Portfolio Documentation Guide** — How to present, structure, and document this project for GitHub and LinkedIn
+[Secure IaC pipeline architecture diagram](./images/IaC-Pipeline.png)
 
----
 
-## 1. Recommended Project Title
 
-**GitHub Repo Name:**
-`terraform-devsecops-iac-pipeline`
+##  Project Overview 
 
-**GitHub Repo Description (one-liner):**
-> Enterprise-grade secure IaC CI/CD pipeline using Terraform, GitHub Actions, and DevSecOps best practices on AWS.
-
-**LinkedIn Project Title:**
-> Enterprise DevSecOps Pipeline: Secure Infrastructure as Code with Terraform & CI/CD Automation
-
----
-
-## 2. Project Overview (The Elevator Pitch)
-
-This project demonstrates the design and implementation of a production-grade, security-first CI/CD pipeline for Infrastructure as Code (IaC) using Terraform and GitHub Actions on AWS. It integrates DevSecOps practices at every layer — from local developer environments to cloud deployment — using a shift-left security approach to catch vulnerabilities early in the development lifecycle.
+This project demonstrates the design and implementation of a production-grade, security-first CI/CD pipeline for Infrastructure as Code (IaC) using Terraform and GitHub Actions on AWS. The project  integrates DevSecOps practices at every every stage of infrastructure provisioning, from local development environments to cloud deployment using a shift-left security approach to catch vulnerabilities early in the infrastructure provisioning lifecycle.
 
 ---
 
 ## 3. Project Architecture Overview
 
 ```
-Developer Workstation
+DevOps/Developer local environment
   └── Pre-commit Hooks (Gitleaks, lint, format)
          │
          ▼
@@ -48,9 +35,13 @@ GitHub Repository (main branch)
 
 ---
 
-## 4. Full Project Outline
+## Full Project Outline
 
 ### Phase 1 — Local Development Security (Shift-Left)
+In this first phase, to  ensure that security is part of the development process from the very start , shift-left security mindset pre-commit hooks were 
+installed and congiured for local development environments using the pre-commit framewor.
+Goal: prevent insecure or broken code from ever reaching the remote repo and evntually the CI/CD pipeline
+
 - Pre-commit framework setup for automated local checks
 - Gitleaks integration for hardcoded secrets detection
 - Terraform formatting (`terraform fmt`) and linting (`tflint`)
