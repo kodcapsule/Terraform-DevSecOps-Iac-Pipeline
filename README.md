@@ -12,25 +12,120 @@ This project demonstrates the design and implementation of a production-grade, s
 
 ## 3. Project Architecture Overview
 
+
 ```
-DevOps/Developer local environment
-  └── Pre-commit Hooks (Gitleaks, lint, format)
-         │
-         ▼
-GitHub Repository (main branch)
-  └── GitHub Actions CI/CD Pipeline
-         │
-         ├── Stage 1 (Parallel)
-         │     ├── Terraform fmt / validate / tflint
-         │     ├── Static Code Analysis — SAST (Checkov / tfsec)
-         │     └── Dependency / Module Scanning
-         │
-         ├── Stage 2
-         │     └── Terraform Plan (OIDC Auth → AWS)
-         │
-         └── Stage 3
-               └── Terraform Apply → AWS (VPC + EKS)
-                     └── Remote State → S3 (encrypted, versioned)
+terraform-devsecops-iac-pipeline/
+│
+├── 🔴 .github/
+│   └── workflows/
+│       ├── 01-secrets-scan.yml          # Gitleaks — push, PR, daily cron at 4 AM
+│       ├── 02-lint-validate.yml         # terraform fmt + validate + tflint (parallel)
+│       ├── 03-sast-scan.yml             # Checkov / tfsec — CIS benchmark misconfigs
+│       ├── 04-module-scan.yml           # Trivy — CVEs in modules and providers
+│       ├── 05-opa-policy.yml            # OPA Rego checks against terraform plan JSON
+│       ├── 06-terraform-plan.yml        # OIDC auth → AWS → plan + save artifact
+│       ├── 07-terraform-apply.yml       # Manual approval gate → apply saved plan
+│       ├── 08-terraform-destroy.yml     # Manual trigger only — full teardown
+│       └── 09-drift-detection.yml       # Scheduled plan-only to detect config drift
+│
+├── 🔵 infra/
+│   │
+│   ├── 🟢 modules/                      # Reusable, versioned Terraform modules
+│   │   │
+│   │   ├── vpc/                         # VPC: subnets, route tables, IGW, NAT, flow logs
+│   │   │   ├── main.tf
+│   │   │   ├── variables.tf
+│   │   │   ├── outputs.tf
+│   │   │   └── README.md
+│   │   │
+│   │   ├── eks/                         # EKS: cluster, node groups, IAM, OIDC provider
+│   │   │   ├── main.tf
+│   │   │   ├── iam.tf
+│   │   │   ├── variables.tf
+│   │   │   ├── outputs.tf
+│   │   │   └── README.md
+│   │   │
+│   │   ├── s3-backend/                  # Remote state bucket: versioning, AES-256, access block
+│   │   │   ├── main.tf
+│   │   │   ├── variables.tf
+│   │   │   └── outputs.tf
+│   │   │
+│   │   ├── iam-oidc/                    # OIDC IAM provider + scoped role for GitHub Actions
+│   │   │   ├── main.tf
+│   │   │   ├── variables.tf
+│   │   │   └── outputs.tf
+│   │   │
+│   │   └── security-groups/             # Least-privilege SGs for VPC, EKS control plane, nodes
+│   │       ├── main.tf
+│   │       ├── variables.tf
+│   │       └── outputs.tf
+│   │
+│   └── 🟡 environments/                 # Per-environment root modules (compose modules above)
+│       │
+│       ├── dev/
+│       │   ├── main.tf                  # Calls vpc, eks, iam-oidc, sg modules (dev inputs)
+│       │   ├── backend.tf               # S3 state: dev/terraform.tfstate
+│       │   ├── variables.tf
+│       │   ├── terraform.tfvars         # Dev values: t3.medium, single-AZ, smaller CIDR
+│       │   └── outputs.tf
+│       │
+│       ├── staging/
+│       │   ├── main.tf                  # Production-like sizing for pre-release validation
+│       │   ├── backend.tf               # S3 state: staging/terraform.tfstate
+│       │   ├── variables.tf
+│       │   └── terraform.tfvars
+│       │
+│       └── prod/
+│           ├── main.tf                  # Multi-AZ, auto-scaling, enhanced monitoring
+│           ├── backend.tf               # S3 state: prod/terraform.tfstate (locked)
+│           ├── variables.tf
+│           ├── terraform.tfvars         # Prod values: larger nodes, multi-AZ, full HA
+│           └── outputs.tf
+│
+├── 🟣 security/                         # DevSecOps tooling configuration
+│   ├── .gitleaks.toml                   # Custom secret detection rules + false-positive allowlist
+│   ├── .tflint.hcl                      # tflint: AWS plugin, naming rules, deprecated resources
+│   ├── .checkov.yaml                    # Checkov: enabled checks, skips with justification, SARIF output
+│   ├── .pre-commit-config.yaml          # Local hooks: fmt, validate, tflint, Gitleaks on git commit
+│   └── trivy.yaml                       # Trivy: severity thresholds, ignore paths, exit codes
+│
+├── 🌿 policy/                           # Policy as Code — OPA Rego rules enforced pre-apply
+│   ├── tagging.rego                     # Mandatory tags: Environment, Owner, Project, CostCenter
+│   ├── encryption.rego                  # Blocks unencrypted S3, EBS, RDS resources
+│   ├── region.rego                      # Restricts deployments to approved AWS regions only
+│   ├── iam.rego                         # Detects overly permissive IAM (Action: *)
+│   ├── eks.rego                         # EKS: public endpoint off in prod, logging on, k8s version
+│   └── tests/                           # OPA unit tests — validates both pass and fail cases
+│       ├── tagging_test.rego
+│       ├── encryption_test.rego
+│       ├── region_test.rego
+│       ├── iam_test.rego
+│       └── eks_test.rego
+│
+├── ⚪ scripts/                          # Bash helpers for local dev and CI utilities
+│   ├── setup-local.sh                   # One-command bootstrap: installs all DevSecOps tools
+│   ├── create-s3-backend.sh             # AWS CLI: provision state bucket per environment
+│   ├── validate-all.sh                  # Full local validation suite across all environments
+│   └── opa-test.sh                      # Wrapper to run OPA policy unit tests
+│
+├── ⚪ docs/                             # Project documentation
+│   ├── architecture.md                  # Full pipeline + infrastructure architecture with diagrams
+│   ├── adr/                             # Architecture Decision Records
+│   │   ├── 001-oidc-auth.md             # ADR: OIDC over long-lived AWS access keys
+│   │   ├── 002-s3-state.md              # ADR: S3 native locking vs DynamoDB
+│   │   └── 003-opa-policy.md            # ADR: OPA over HashiCorp Sentinel
+│   └── runbooks/
+│       ├── new-environment.md           # How to add a new Terraform environment end-to-end
+│       └── state-recovery.md            # Recovering from corrupted or locked Terraform state
+│
+├── ⚪ Images/                           # Architecture diagrams, pipeline screenshots, README visuals
+│
+├── .gitignore                           # Ignores: .terraform/, *.tfstate, *.tfvars secrets, crash.log
+├── .terraform-version                   # Pins exact Terraform version via tfenv
+├── CHANGELOG.md                         # Structured changelog — per-iteration build history
+├── COST.md                              # Estimated AWS cost breakdown per environment
+└── README.md                            # Overview, architecture, prerequisites, setup, pipeline docs
+
 ```
 
 ---
@@ -113,48 +208,6 @@ To enable wide coverage of security issues, the hooks were categorized into
 
 ---
 
-## 7. README Structure (GitHub)
-
-Your GitHub README should follow this structure for maximum impact:
-
-```
-# terraform-devsecops-iac-pipeline
-
-[Banner image / architecture diagram]
-
-## Overview
-[2–3 sentence summary of what the project does and why it matters]
-
-## Architecture
-[Pipeline diagram or architecture image]
-
-## Prerequisites
-[List — GitHub account, AWS account, tools to install]
-
-## Project Structure
-[Folder/file tree with descriptions]
-
-## Setup Guide
-  ### 1. Local Environment Setup
-  ### 2. Configure OIDC (GitHub → AWS)
-  ### 3. Create Remote S3 Backend
-  ### 4. Configure GitHub Actions Workflows
-  ### 5. Deploy Infrastructure
-
-## Pipeline Stages
-[Description of each stage with screenshot]
-
-## Security Controls
-[Table or list of all security measures implemented]
-
-## Lessons Learned
-[2–3 honest reflections — what worked, what you'd improve]
-
-## References & Resources
-[Links to tools, AWS docs, articles you referenced]
-```
-
----
 
 ## 8. LinkedIn Project Entry
 
