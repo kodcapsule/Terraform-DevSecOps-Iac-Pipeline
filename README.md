@@ -134,14 +134,22 @@ terraform-devsecops-iac-pipeline/
 
 ### Phase 1 — Local Development Security (Shift-Left)
 In this first phase, to  ensure that security is part of the development process from the very start , shift-left security mindset pre-commit hooks were 
-installed and congiured for local development environments using the pre-commit framewor.
-Goal: prevent insecure or broken code from ever reaching the remote repo and evntually the CI/CD pipeline
+installed and congiured for local development environments using the pre-commit framework.
+- Goal: prevent insecure or broken code from ever reaching the remote repo and evntually the CI/CD pipeline
 
 To enable wide coverage of security issues, the hooks were categorized into 
 
-- Quality & IaC Security :terraform_fmt, terraform_validate,terraform_tflint,terraform_trivy,terraform_checkov,terrascan 
-- Secret-Detection : gitleaks, detect-secrets 
-- File Hygiene layers: trailing-whitespace, check-yaml,check-json, check-added-large-files
+- Quality & IaC Security :
+   terraform_fmt, terraform_validate,terraform_tflint,terraform_trivy,terraform_checkov,terrascan 
+- Secret-Detection : 
+  gitleaks, detect-secrets 
+- File Hygiene layers: 
+   trailing-whitespace, check-yaml,check-json, check-added-large-files
+
+Here's the corrected and more technical version:
+
+**Installing Pre-Commit Hooks**
+To install the pre-commit framework, navigate to `/scripts` and execute the `setup-pre-commit.sh` script.
 
 ### Phase 2 — Authentication & Zero-Trust Access
 - Configured OpenID Connect (OIDC) between GitHub Actions and AWS
