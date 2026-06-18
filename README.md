@@ -4,7 +4,7 @@
 
 
 
-##  Project Overview 
+##  Project Overview
 
 This project demonstrates the design and implementation of a production-grade, security-first CI/CD pipeline for Infrastructure as Code (IaC) using Terraform and GitHub Actions on AWS. The project  integrates DevSecOps practices at every every stage of infrastructure provisioning, from local development environments to cloud deployment using a shift-left security approach to catch vulnerabilities early in the infrastructure provisioning lifecycle.
 
@@ -133,23 +133,30 @@ terraform-devsecops-iac-pipeline/
 ## Full Project Outline
 
 ### Phase 1 — Local Development Security (Shift-Left)
-In this first phase, to  ensure that security is part of the development process from the very start , shift-left security mindset pre-commit hooks were 
+In this first phase, to  ensure that security is part of the development process from the very start , shift-left security mindset pre-commit hooks were
 installed and congiured for local development environments using the pre-commit framework.
 - Goal: prevent insecure or broken code from ever reaching the remote repo and evntually the CI/CD pipeline
 
-To enable wide coverage of security issues, the hooks were categorized into 
+To enable wide coverage of security issues, the hooks were categorized into
 
 - Quality & IaC Security :
-   terraform_fmt, terraform_validate,terraform_tflint,terraform_trivy,terraform_checkov,terrascan 
-- Secret-Detection : 
-  gitleaks, detect-secrets 
-- File Hygiene layers: 
+   terraform_fmt, terraform_validate,terraform_tflint,terraform_trivy,terraform_checkov,terrascan
+- Secret-Detection :
+  gitleaks, detect-secrets
+- File Hygiene layers:
    trailing-whitespace, check-yaml,check-json, check-added-large-files
 
 Here's the corrected and more technical version:
 
-**Installing Pre-Commit Hooks**
-To install the pre-commit framework, navigate to `/scripts` and execute the `setup-pre-commit.sh` script.
+**Installing Pre-Commit framework**
+Make sure you have python installed and create a python virtual environment and activate the virtual environment
+
+To install the pre-commit framework, run these commands.
+
+```bash
+pip install pre-commit # install the precommit hook
+pre-commit --version  # check and verify that pre-commit framework is installed
+```
 
 ### Phase 2 — Authentication & Zero-Trust Access
 - Configured OpenID Connect (OIDC) between GitHub Actions and AWS

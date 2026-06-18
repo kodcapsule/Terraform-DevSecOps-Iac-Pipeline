@@ -1,0 +1,55 @@
+# =============================================================================
+# .pre-commit-config.yaml
+# Three-layer hook configuration: IaC quality/security, secret detection,
+# and general file hygiene.
+#
+# Setup:
+#   pip install pre-commit
+#   pre-commit install
+#
+# Run on all files:
+#   pre-commit run --all-files
+#
+# Update hook versions:
+#   pre-commit autoupdate
+# =============================================================================
+
+repos:
+
+  # ---------------------------------------------------------------------------
+  # Layer 1: Code Quality & IaC Security (Terraform)
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.101.0
+    hooks:
+      - id: terraform_fmt
+      - id: terraform_validate
+      - id: terraform_tflint
+      - id: terraform_trivy
+      - id: terraform_checkov
+      - id: terrascan
+
+  # ---------------------------------------------------------------------------
+  # Layer 2: Secret Detection
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        # args: ['--baseline', '.secrets.baseline']
+
+  # ---------------------------------------------------------------------------
+  # Layer 3: File Hygiene
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: check-yaml
+      - id: check-json
+      - id: check-added-large-files
